@@ -1,0 +1,17 @@
+{
+  "name": "bot-wa-baileys-pairing",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot Baileys Pro Pairing Code",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18.20.2"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys-pro": "^7.0.0",
+    "pino": "^8.17.0"
+  }
+}
