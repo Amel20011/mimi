@@ -1,17 +1,19 @@
 {
-  "name": "bot-wa-baileys-pairing",
+  "name": "bot-wa",
   "version": "1.0.0",
-  "description": "WhatsApp Bot Baileys Pro Pairing Code",
+  "description": "WhatsApp Bot with full button menus",
   "main": "index.js",
-  "type": "commonjs",
   "scripts": {
-    "start": "node index.js"
-  },
-  "engines": {
-    "node": ">=18.20.2"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys-pro": "^7.0.0",
-    "pino": "^8.17.0"
+    "whatsapp-web.js": "^1.28.0",
+    "qrcode-terminal": "^0.12.0",
+    "fs": "0.0.1-security",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
   }
 }
