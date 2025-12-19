@@ -1,80 +1,100 @@
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion
-} = require('@whiskeysockets/baileys-pro')
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const config = require('./config');
+const menu = require('./lib/menu');
+const group = require('./lib/group');
+const admin = require('./lib/admin');
+const reply = require('./lib/reply');
+const functionUtils = require('./lib/function');
 
-const Pino = require('pino')
-const readline = require('readline')
-const config = require('./config')
-const menu = require('./lib/menu')
-const group = require('./lib/group')
-const admin = require('./lib/admin')
-
-async function startBot() {
-  const { state, saveCreds } = await useMultiFileAuthState('./session')
-  const { version } = await fetchLatestBaileysVersion()
-
-  const sock = makeWASocket({
-    logger: Pino({ level: 'silent' }),
-    auth: state,
-    version,
-    printQRInTerminal: false,
-    browser: ['Bot WhatsApp', 'Safari', '1.0']
-  })
-
-  // ===== PAIRING CODE =====
-  if (!sock.authState.creds.registered) {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    })
-
-    rl.question('Masukkan nomor WA (628xxx): ', async (number) => {
-      const code = await sock.requestPairingCode(number)
-      console.log('\n🔑 PAIRING CODE:', code)
-      console.log('📱 WhatsApp > Perangkat tertaut > Masukkan kode')
-      rl.close()
-    })
-  }
-
-  sock.ev.on('creds.update', saveCreds)
-
-  sock.ev.on('connection.update', ({ connection }) => {
-    if (connection === 'open') {
-      console.log('✅ BOT CONNECTED')
+// Initialize client
+const client = new Client({
+    authStrategy: new LocalAuth({ clientId: "bot-wa" }),
+    puppeteer: { 
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
     }
-  })
+});
 
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const m = messages[0]
-    if (!m.message) return
+// Load database
+const antilink = require('./database/antilink.json');
+const welcome = require('./database/welcome.json');
+const users = require('./database/users.json');
 
-    const from = m.key.remoteJid
-    const isGroup = from.endsWith('@g.us')
-    const body =
-      m.message.conversation ||
-      m.message.extendedTextMessage?.text ||
-      ''
+// Client events
+client.on('qr', (qr) => {
+    console.log('QR Code received, scan it with your phone');
+    require('qrcode-terminal').generate(qr, { small: true });
+});
 
-    const cmd = body.toLowerCase()
+client.on('ready', () => {
+    console.log('Bot is ready!');
+    console.log(`Logged in as ${client.info.wid.user}`);
+});
 
-    if (cmd === `${config.prefix}menu`) {
-      return menu(sock, from, config)
+client.on('message', async (msg) => {
+    const chat = await msg.getChat();
+    const body = msg.body.toLowerCase();
+    const isGroup = chat.isGroup;
+    
+    // Check if message is command
+    if (body.startsWith(config.prefix)) {
+        const command = body.slice(config.prefix.length).trim().toLowerCase();
+        
+        // Menu command
+        if (command === 'menu' || command === 'help') {
+            menu.showMainMenu(client, msg);
+            return;
+        }
+        
+        // Group commands
+        if (isGroup) {
+            if (command === 'tagall') {
+                group.tagAll(client, msg);
+                return;
+            }
+            if (command === 'kick') {
+                group.kickMember(client, msg);
+                return;
+            }
+            if (command === 'promote') {
+                group.promoteMember(client, msg);
+                return;
+            }
+        }
+        
+        // Admin commands
+        if (msg.fromMe) {
+            if (command === 'setwelcome') {
+                admin.setWelcome(client, msg, welcome);
+                return;
+            }
+            if (command === 'setgoodbye') {
+                admin.setGoodbye(client, msg, goodbye);
+                return;
+            }
+        }
     }
+    
+    // Auto reply for specific messages
+    reply.autoReply(client, msg, body);
+});
 
-    if (cmd === `${config.prefix}admin`) {
-      return admin.contact(sock, from, config)
+// Group events
+client.on('group_join', (groupChat, user) => {
+    const welcomeMsg = welcome[groupChat.id._serialized] || config.welcomeMessage;
+    groupChat.sendMessage(welcomeMsg.replace('{user}', user.name));
+});
+
+client.on('group_leave', (groupChat, user) => {
+    const goodbyeMsg = goodbye[groupChat.id._serialized] || config.goodbyeMessage;
+    groupChat.sendMessage(goodbyeMsg.replace('{user}', user.name));
+});
+
+client.on('group_update', (groupChat, update) => {
+    if (update.isChangeSubject) {
+        groupChat.sendMessage(`Subject changed to: ${update.subject}`);
     }
+});
 
-    if (cmd === `${config.prefix}tagall`) {
-      return group.tagall(sock, from, isGroup)
-    }
-
-    if (cmd === `${config.prefix}group`) {
-      return group.close(sock, from, isGroup)
-    }
-  })
-}
-
-startBot()
+// Initialize bot
+client.initialize();
